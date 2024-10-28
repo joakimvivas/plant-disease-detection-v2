@@ -92,9 +92,11 @@ def train_model(model, criterion, optimizer, num_epochs=10):
         
     return model
 
+# Ensure the model directory exists before saving
+os.makedirs('model/checkpoints', exist_ok=True)
+
 # Train and save the model
 model = train_model(model, criterion, optimizer, num_epochs=10)
-os.makedirs('model/checkpoints', exist_ok=True)
 torch.save(model, 'model/checkpoints/plant_disease_model.pth')
 print("Model saved at 'model/checkpoints/plant_disease_model.pth'")
 
