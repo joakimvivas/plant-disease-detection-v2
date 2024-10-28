@@ -11,6 +11,7 @@ import io
 import json
 import shutil
 import subprocess
+import random
 
 app = FastAPI()
 
@@ -23,8 +24,6 @@ dataset_dir = "new-plant-diseases-dataset"
 model_dir = "model/checkpoints"
 model_path = f"{model_dir}/plant_disease_model.pth"
 class_names_path = f"{model_dir}/class_names.json"
-
-import random
 
 def check_and_download_dataset():
     # Check if dataset exists; if not, download it
@@ -78,12 +77,28 @@ def check_and_download_dataset():
     else:
         print("Dataset found in project directory:", dataset_dir)
 
+def load_model():
+    """Function to load the model and class names if available."""
+    global model, class_names
+    if os.path.exists(model_path) and os.path.exists(class_names_path):
+        model = torch.load(model_path)
+        model.eval()
+        with open(class_names_path, "r") as f:
+            class_names = json.load(f)
+        print("Model and class names loaded successfully.")
+    else:
+        model = None
+        class_names = []
+        print("Model not found. Please train the model using train.py before running the application.")
+
 def train_model_if_needed():
     # Check if model exists; if not, run train.py
     if not os.path.exists(model_path) or not os.path.exists(class_names_path):
         print("Model not found. Training the model...")
         subprocess.run(["python3", "app/train.py"])
         print("Model training completed.")
+        # Reload the model after training
+        load_model()
     else:
         print("Model already trained and ready for use.")
 
@@ -91,18 +106,7 @@ def train_model_if_needed():
 @app.on_event("startup")
 def on_startup():
     check_and_download_dataset()
-
-# Load model and class names if available
-if os.path.exists(model_path) and os.path.exists(class_names_path):
-    model = torch.load(model_path)
-    model.eval()
-    with open(class_names_path, "r") as f:
-        class_names = json.load(f)
-else:
-    # Show error message and skip model loading
-    model = None
-    class_names = []
-    print("Model not found. Please train the model using train.py before running the application.")
+    load_model()  # Load model initially if already trained
 
 # Main endpoint
 @app.get("/", response_class=HTMLResponse)
