@@ -24,6 +24,8 @@ model_dir = "model/checkpoints"
 model_path = f"{model_dir}/plant_disease_model.pth"
 class_names_path = f"{model_dir}/class_names.json"
 
+import random
+
 def check_and_download_dataset():
     # Check if dataset exists; if not, download it
     if not os.path.exists(dataset_dir) or not os.listdir(dataset_dir):
@@ -35,15 +37,41 @@ def check_and_download_dataset():
         shutil.copytree(path, dataset_dir)
         print(f"Dataset copied to project directory: {dataset_dir}")
 
-        # Define expected train and validation directories
+        # Define directories for train and validation sets
+        plantvillage_dir = os.path.join(dataset_dir, 'PlantVillage')
         train_dir = os.path.join(dataset_dir, 'train')
         val_dir = os.path.join(dataset_dir, 'val')
-        
-        # Check if the structure is correct
-        if not os.path.exists(train_dir) or not os.path.exists(val_dir):
-            print("Warning: Expected directory structure not found. Please verify the dataset manually.")
-        else:
-            print(f"Dataset structure confirmed with train and val directories in {dataset_dir}")
+
+        # Create train and val directories if they don't exist
+        os.makedirs(train_dir, exist_ok=True)
+        os.makedirs(val_dir, exist_ok=True)
+
+        # Split each class directory into train and val sets
+        for class_dir in os.listdir(plantvillage_dir):
+            class_path = os.path.join(plantvillage_dir, class_dir)
+            if os.path.isdir(class_path):
+                # Create class-specific directories in train and val
+                train_class_dir = os.path.join(train_dir, class_dir)
+                val_class_dir = os.path.join(val_dir, class_dir)
+                os.makedirs(train_class_dir, exist_ok=True)
+                os.makedirs(val_class_dir, exist_ok=True)
+
+                # List all images in the class directory and shuffle
+                images = os.listdir(class_path)
+                random.shuffle(images)
+                
+                # Split 80% for train and 20% for val
+                train_count = int(0.8 * len(images))
+                train_images = images[:train_count]
+                val_images = images[train_count:]
+
+                # Move images to train and val directories
+                for img in train_images:
+                    shutil.move(os.path.join(class_path, img), train_class_dir)
+                for img in val_images:
+                    shutil.move(os.path.join(class_path, img), val_class_dir)
+
+        print(f"Dataset structured into train and val directories at {dataset_dir}")
 
         # Train model after dataset download and reorganization
         train_model_if_needed()
