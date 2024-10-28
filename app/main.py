@@ -78,10 +78,10 @@ def check_and_download_dataset():
         print("Dataset found in project directory:", dataset_dir)
 
 def load_model():
-    """Function to load the model and class names if available."""
+    """Function to load the model and class names on CPU."""
     global model, class_names
     if os.path.exists(model_path) and os.path.exists(class_names_path):
-        model = torch.load(model_path)
+        model = torch.load(model_path, map_location=torch.device('cpu'))  # Load model on CPU
         model.eval()
         with open(class_names_path, "r") as f:
             class_names = json.load(f)
@@ -126,7 +126,7 @@ async def predict_disease(request: Request, file: UploadFile = File(...)):
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
-    image_tensor = transform(image).unsqueeze(0)
+    image_tensor = transform(image).unsqueeze(0).to('cpu')  # Ensure tensor is on CPU
 
     # Perform prediction
     with torch.no_grad():
