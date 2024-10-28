@@ -17,15 +17,17 @@ app = FastAPI()
 templates = Jinja2Templates(directory="app/templates")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
-# Dataset directory and conditional download
+# Dataset and model directories
 dataset_dir = "new-plant-diseases-dataset"
 model_dir = "model/checkpoints"
+model_path = f"{model_dir}/plant_disease_model.pth"
+class_names_path = f"{model_dir}/class_names.json"
 
 def check_and_download_dataset():
     # Check if dataset exists; if not, download it
     if not os.path.exists(dataset_dir) or not os.listdir(dataset_dir):
         print("Dataset not found. Downloading from Kaggle...")
-        path = kagglehub.dataset_download("vipoooool/new-plant-diseases-dataset")
+        path = kagglehub.dataset_download("vipoooool/new-plant-diseases-dataset") # https://www.kaggle.com/datasets/vipoooool/new-plant-diseases-dataset
         print("Dataset downloaded at:", path)
     else:
         print("Dataset found in directory:", dataset_dir)
@@ -35,11 +37,17 @@ def check_and_download_dataset():
 def on_startup():
     check_and_download_dataset()
 
-# Load the full model and class names
-model = torch.load(f"{model_dir}/plant_disease_model.pth")
-model.eval()
-with open(f"{model_dir}/class_names.json", "r") as f:
-    class_names = json.load(f)
+# Load model and class names if available
+if os.path.exists(model_path) and os.path.exists(class_names_path):
+    model = torch.load(model_path)
+    model.eval()
+    with open(class_names_path, "r") as f:
+        class_names = json.load(f)
+else:
+    # Show error message and skip model loading
+    model = None
+    class_names = []
+    print("Model not found. Please train the model using train.py before running the application.")
 
 # Main endpoint
 @app.get("/", response_class=HTMLResponse)
@@ -49,6 +57,9 @@ async def get_home(request: Request):
 # Endpoint to process the image and predict disease
 @app.post("/predict")
 async def predict_disease(request: Request, file: UploadFile = File(...)):
+    if model is None:
+        return {"error": "Model not loaded. Please train the model first."}
+
     # Read and process the image
     image = Image.open(io.BytesIO(await file.read()))
     transform = transforms.Compose([
