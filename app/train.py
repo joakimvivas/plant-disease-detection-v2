@@ -1,14 +1,26 @@
+import os
+import sys
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torchvision import datasets, models, transforms
 from torch.utils.data import DataLoader
-import os
 import time
 import json
 
+# Define directories
+data_dir = 'new-plant-diseases-dataset'
+train_dir = os.path.join(data_dir, 'train')
+val_dir = os.path.join(data_dir, 'val')
+
+# Check if train and val directories exist
+if not os.path.exists(train_dir) or not os.path.exists(val_dir):
+    print("Error: 'train' and/or 'val' directories not found in", data_dir)
+    print("Please ensure that the dataset is organized correctly before training.")
+    sys.exit(1)
+
 # Set device configuration
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cpu")  # Explicitly use CPU
 
 # Transformation configuration for training and validation
 data_transforms = {
@@ -26,10 +38,9 @@ data_transforms = {
 }
 
 # Load dataset
-data_dir = 'new-plant-diseases-dataset'
 image_datasets = {
-    'train': datasets.ImageFolder(os.path.join(data_dir, 'train'), data_transforms['train']),
-    'val': datasets.ImageFolder(os.path.join(data_dir, 'val'), data_transforms['val'])
+    'train': datasets.ImageFolder(train_dir, data_transforms['train']),
+    'val': datasets.ImageFolder(val_dir, data_transforms['val'])
 }
 dataloaders = {
     'train': DataLoader(image_datasets['train'], batch_size=32, shuffle=True, num_workers=4),
@@ -39,7 +50,7 @@ class_names = image_datasets['train'].classes
 num_classes = len(class_names)
 
 # Model configuration
-model = models.resnet50(pretrained=True)
+model = models.resnet50(weights="ResNet50_Weights.IMAGENET1K_V1")
 num_ftrs = model.fc.in_features
 model.fc = nn.Linear(num_ftrs, num_classes)
 model = model.to(device)
@@ -64,8 +75,9 @@ def train_model(model, criterion, optimizer, num_epochs=10):
 
             running_loss = 0.0
             running_corrects = 0
+            total_batches = len(dataloaders[phase])
 
-            for inputs, labels in dataloaders[phase]:
+            for batch_idx, (inputs, labels) in enumerate(dataloaders[phase]):
                 inputs, labels = inputs.to(device), labels.to(device)
 
                 optimizer.zero_grad()
@@ -81,22 +93,23 @@ def train_model(model, criterion, optimizer, num_epochs=10):
                 running_loss += loss.item() * inputs.size(0)
                 running_corrects += torch.sum(preds == labels.data)
 
+                # Output progress every 10 batches
+                if batch_idx % 10 == 0:
+                    print(f"{phase.capitalize()} Batch {batch_idx + 1}/{total_batches} - Loss: {loss.item():.4f}")
+
             epoch_loss = running_loss / len(image_datasets[phase])
             epoch_acc = running_corrects.double() / len(image_datasets[phase])
 
-            print(f"{phase} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}")
+            print(f"{phase.capitalize()} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}")
 
         epoch_duration = time.time() - epoch_start
-        print(f"Epoch duration: {epoch_duration:.2f} seconds")
-        print()
+        print(f"Epoch duration: {epoch_duration:.2f} seconds\n")
         
     return model
 
-# Ensure the model directory exists before saving
-os.makedirs('model/checkpoints', exist_ok=True)
-
 # Train and save the model
 model = train_model(model, criterion, optimizer, num_epochs=10)
+os.makedirs('model/checkpoints', exist_ok=True)
 torch.save(model, 'model/checkpoints/plant_disease_model.pth')
 print("Model saved at 'model/checkpoints/plant_disease_model.pth'")
 
