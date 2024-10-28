@@ -34,8 +34,22 @@ def check_and_download_dataset():
         # Copy downloaded dataset to project directory
         shutil.copytree(path, dataset_dir)
         print(f"Dataset copied to project directory: {dataset_dir}")
+
+        # Define the source and target paths for train and validation directories
+        nested_dir = os.path.join(dataset_dir, 'New Plant Diseases Dataset(Augmented)', 'New Plant Diseases Dataset(Augmented)')
+        train_dir = os.path.join(dataset_dir, 'train')
+        val_dir = os.path.join(dataset_dir, 'val')
         
-        # Train model after dataset download
+        # Check if the nested directory structure exists
+        if os.path.exists(nested_dir):
+            # Move train and valid directories to the main dataset directory
+            shutil.move(os.path.join(nested_dir, 'train'), train_dir)
+            shutil.move(os.path.join(nested_dir, 'valid'), val_dir)
+            print(f"Training and validation data moved to {dataset_dir}")
+        else:
+            print("Warning: Expected directory structure not found. Please verify the dataset manually.")
+
+        # Train model after dataset download and reorganization
         train_model_if_needed()
     else:
         print("Dataset found in project directory:", dataset_dir)
