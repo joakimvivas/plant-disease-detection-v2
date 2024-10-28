@@ -28,26 +28,22 @@ def check_and_download_dataset():
     # Check if dataset exists; if not, download it
     if not os.path.exists(dataset_dir) or not os.listdir(dataset_dir):
         print("Dataset not found. Downloading from Kaggle...")
-        path = kagglehub.dataset_download("vipoooool/new-plant-diseases-dataset")
+        path = kagglehub.dataset_download("emmarex/plantdisease")
         print("Dataset downloaded at:", path)
         
         # Copy downloaded dataset to project directory
         shutil.copytree(path, dataset_dir)
         print(f"Dataset copied to project directory: {dataset_dir}")
 
-        # Define the source and target paths for train and validation directories
-        nested_dir = os.path.join(dataset_dir, 'New Plant Diseases Dataset(Augmented)', 'New Plant Diseases Dataset(Augmented)')
+        # Define expected train and validation directories
         train_dir = os.path.join(dataset_dir, 'train')
         val_dir = os.path.join(dataset_dir, 'val')
         
-        # Check if the nested directory structure exists
-        if os.path.exists(nested_dir):
-            # Move train and valid directories to the main dataset directory
-            shutil.move(os.path.join(nested_dir, 'train'), train_dir)
-            shutil.move(os.path.join(nested_dir, 'valid'), val_dir)
-            print(f"Training and validation data moved to {dataset_dir}")
-        else:
+        # Check if the structure is correct
+        if not os.path.exists(train_dir) or not os.path.exists(val_dir):
             print("Warning: Expected directory structure not found. Please verify the dataset manually.")
+        else:
+            print(f"Dataset structure confirmed with train and val directories in {dataset_dir}")
 
         # Train model after dataset download and reorganization
         train_model_if_needed()
