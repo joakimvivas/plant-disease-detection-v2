@@ -10,6 +10,7 @@ import kagglehub
 import io
 import json
 import shutil
+import subprocess
 
 app = FastAPI()
 
@@ -27,10 +28,26 @@ def check_and_download_dataset():
     # Check if dataset exists; if not, download it
     if not os.path.exists(dataset_dir) or not os.listdir(dataset_dir):
         print("Dataset not found. Downloading from Kaggle...")
-        path = kagglehub.dataset_download("vipoooool/new-plant-diseases-dataset") # https://www.kaggle.com/datasets/vipoooool/new-plant-diseases-dataset
+        path = kagglehub.dataset_download("vipoooool/new-plant-diseases-dataset")
         print("Dataset downloaded at:", path)
+        
+        # Copy downloaded dataset to project directory
+        shutil.copytree(path, dataset_dir)
+        print(f"Dataset copied to project directory: {dataset_dir}")
+        
+        # Train model after dataset download
+        train_model_if_needed()
     else:
-        print("Dataset found in directory:", dataset_dir)
+        print("Dataset found in project directory:", dataset_dir)
+
+def train_model_if_needed():
+    # Check if model exists; if not, run train.py
+    if not os.path.exists(model_path) or not os.path.exists(class_names_path):
+        print("Model not found. Training the model...")
+        subprocess.run(["python3", "app/train.py"])
+        print("Model training completed.")
+    else:
+        print("Model already trained and ready for use.")
 
 # Verify and download dataset on application startup
 @app.on_event("startup")
