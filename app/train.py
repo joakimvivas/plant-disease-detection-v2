@@ -8,21 +8,16 @@ from torch.utils.data import DataLoader
 import time
 import json
 
-# Define directories
 data_dir = 'new-plant-diseases-dataset'
 train_dir = os.path.join(data_dir, 'train')
 val_dir = os.path.join(data_dir, 'val')
 
-# Check if train and val directories exist
 if not os.path.exists(train_dir) or not os.path.exists(val_dir):
     print("Error: 'train' and/or 'val' directories not found in", data_dir)
-    print("Please ensure that the dataset is organized correctly before training.")
     sys.exit(1)
 
-# Set device configuration
-device = torch.device("cpu")  # Explicitly use CPU
+device = torch.device("cpu")
 
-# Transformation configuration for training and validation
 data_transforms = {
     'train': transforms.Compose([
         transforms.Resize((224, 224)),
@@ -37,7 +32,6 @@ data_transforms = {
     ]),
 }
 
-# Load dataset
 image_datasets = {
     'train': datasets.ImageFolder(train_dir, data_transforms['train']),
     'val': datasets.ImageFolder(val_dir, data_transforms['val'])
@@ -49,17 +43,14 @@ dataloaders = {
 class_names = image_datasets['train'].classes
 num_classes = len(class_names)
 
-# Model configuration
 model = models.resnet50(weights="ResNet50_Weights.IMAGENET1K_V1")
 num_ftrs = model.fc.in_features
 model.fc = nn.Linear(num_ftrs, num_classes)
 model = model.to(device)
 
-# Set optimizer and loss function
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 
-# Training function
 def train_model(model, criterion, optimizer, num_epochs=10):
     for epoch in range(num_epochs):
         print(f"Epoch {epoch + 1}/{num_epochs}")
@@ -68,11 +59,7 @@ def train_model(model, criterion, optimizer, num_epochs=10):
         epoch_start = time.time()
         
         for phase in ['train', 'val']:
-            if phase == 'train':
-                model.train()
-            else:
-                model.eval()
-
+            model.train() if phase == 'train' else model.eval()
             running_loss = 0.0
             running_corrects = 0
             total_batches = len(dataloaders[phase])
@@ -93,27 +80,19 @@ def train_model(model, criterion, optimizer, num_epochs=10):
                 running_loss += loss.item() * inputs.size(0)
                 running_corrects += torch.sum(preds == labels.data)
 
-                # Output progress every 10 batches
                 if batch_idx % 10 == 0:
                     print(f"{phase.capitalize()} Batch {batch_idx + 1}/{total_batches} - Loss: {loss.item():.4f}")
 
             epoch_loss = running_loss / len(image_datasets[phase])
             epoch_acc = running_corrects.double() / len(image_datasets[phase])
-
             print(f"{phase.capitalize()} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}")
 
-        epoch_duration = time.time() - epoch_start
-        print(f"Epoch duration: {epoch_duration:.2f} seconds\n")
-        
+        print(f"Epoch duration: {time.time() - epoch_start:.2f} seconds\n")
+
     return model
 
-# Train and save the model
 model = train_model(model, criterion, optimizer, num_epochs=10)
 os.makedirs('model/checkpoints', exist_ok=True)
 torch.save(model, 'model/checkpoints/plant_disease_model.pth')
-print("Model saved at 'model/checkpoints/plant_disease_model.pth'")
-
-# Save class names to a JSON file
 with open('model/checkpoints/class_names.json', 'w') as f:
     json.dump(class_names, f)
-print("Class names saved at 'model/checkpoints/class_names.json'")

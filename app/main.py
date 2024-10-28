@@ -1,108 +1,124 @@
+from fastapi import FastAPI, File, UploadFile, Request
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from PIL import Image
 import torch
-import torch.nn as nn
-import torch.optim as optim
-from torchvision import datasets, models, transforms
-from torch.utils.data import DataLoader
+from torchvision import models, transforms
 import os
-import time
+import kagglehub
+import io
 import json
+import shutil
+import subprocess
+import random
 
-# Set device configuration
-device = torch.device("cpu")  # Explicitly use CPU
+app = FastAPI()
 
-# Transformation configuration for training and validation
-data_transforms = {
-    'train': transforms.Compose([
+# Template configuration
+templates = Jinja2Templates(directory="app/templates")
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+# Dataset and model directories
+dataset_dir = "new-plant-diseases-dataset"
+train_dir = os.path.join(dataset_dir, 'train')
+val_dir = os.path.join(dataset_dir, 'val')
+model_dir = "model/checkpoints"
+model_path = f"{model_dir}/plant_disease_model.pth"
+class_names_path = f"{model_dir}/class_names.json"
+
+def check_and_download_dataset():
+    if not os.path.exists(dataset_dir) or not os.listdir(dataset_dir):
+        print("Dataset not found. Downloading from Kaggle...")
+        path = kagglehub.dataset_download("emmarex/plantdisease")
+        print("Dataset downloaded at:", path)
+        
+        shutil.copytree(path, dataset_dir)
+        print(f"Dataset copied to project directory: {dataset_dir}")
+
+        plantvillage_dir = os.path.join(dataset_dir, 'PlantVillage')
+        os.makedirs(train_dir, exist_ok=True)
+        os.makedirs(val_dir, exist_ok=True)
+
+        for class_dir in os.listdir(plantvillage_dir):
+            class_path = os.path.join(plantvillage_dir, class_dir)
+            if os.path.isdir(class_path):
+                train_class_dir = os.path.join(train_dir, class_dir)
+                val_class_dir = os.path.join(val_dir, class_dir)
+                os.makedirs(train_class_dir, exist_ok=True)
+                os.makedirs(val_class_dir, exist_ok=True)
+
+                images = os.listdir(class_path)
+                random.shuffle(images)
+                train_count = int(0.8 * len(images))
+                train_images = images[:train_count]
+                val_images = images[train_count:]
+
+                for img in train_images:
+                    shutil.move(os.path.join(class_path, img), train_class_dir)
+                for img in val_images:
+                    shutil.move(os.path.join(class_path, img), val_class_dir)
+
+        print(f"Dataset structured into train and val directories at {dataset_dir}")
+
+def load_model():
+    global model, class_names
+    if os.path.exists(model_path) and os.path.exists(class_names_path):
+        model = torch.load(model_path, map_location=torch.device('cpu'))  # Load model on CPU
+        model.eval()
+        with open(class_names_path, "r") as f:
+            class_names = json.load(f)
+        print("Model and class names loaded successfully.")
+    else:
+        model = None
+        class_names = []
+        print("Model not found. Please train the model using train.py before running the application.")
+
+def train_model_if_needed():
+    if not os.path.exists(model_path) or not os.path.exists(class_names_path):
+        print("Model not found. Training the model...")
+        subprocess.run(["python3", "app/train.py"])
+        print("Model training completed.")
+        load_model()
+    else:
+        print("Model already trained and ready for use.")
+
+@app.on_event("startup")
+def on_startup():
+    check_and_download_dataset()
+    train_model_if_needed()
+
+@app.get("/", response_class=HTMLResponse)
+async def get_home(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
+
+@app.post("/predict")
+async def predict_disease(request: Request, file: UploadFile = File(...)):
+    if model is None:
+        return {"error": "Model not loaded. Please train the model first."}
+
+    image = Image.open(io.BytesIO(await file.read()))
+    transform = transforms.Compose([
         transforms.Resize((224, 224)),
-        transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-    ]),
-    'val': transforms.Compose([
-        transforms.Resize((224, 224)),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-    ]),
-}
+    ])
+    image_tensor = transform(image).unsqueeze(0).to('cpu')  # Ensure tensor is on CPU
 
-# Load dataset
-data_dir = 'new-plant-diseases-dataset'
-image_datasets = {
-    'train': datasets.ImageFolder(os.path.join(data_dir, 'train'), data_transforms['train']),
-    'val': datasets.ImageFolder(os.path.join(data_dir, 'val'), data_transforms['val'])
-}
-dataloaders = {
-    'train': DataLoader(image_datasets['train'], batch_size=32, shuffle=True, num_workers=4),
-    'val': DataLoader(image_datasets['val'], batch_size=32, shuffle=False, num_workers=4)
-}
-class_names = image_datasets['train'].classes
-num_classes = len(class_names)
+    with torch.no_grad():
+        output = model(image_tensor)
+        _, predicted = torch.max(output, 1)
+        disease_name = class_names[predicted.item()]
 
-# Model configuration
-model = models.resnet50(weights="ResNet50_Weights.IMAGENET1K_V1")
-num_ftrs = model.fc.in_features
-model.fc = nn.Linear(num_ftrs, num_classes)
-model = model.to(device)
+    return templates.TemplateResponse("result.html", {
+        "request": request,
+        "disease_name": disease_name
+    })
 
-# Set optimizer and loss function
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
-
-# Training function
-def train_model(model, criterion, optimizer, num_epochs=10):
-    for epoch in range(num_epochs):
-        print(f"Epoch {epoch + 1}/{num_epochs}")
-        print("-" * 10)
-        
-        epoch_start = time.time()
-        
-        for phase in ['train', 'val']:
-            if phase == 'train':
-                model.train()
-            else:
-                model.eval()
-
-            running_loss = 0.0
-            running_corrects = 0
-            total_batches = len(dataloaders[phase])
-
-            for batch_idx, (inputs, labels) in enumerate(dataloaders[phase]):
-                inputs, labels = inputs.to(device), labels.to(device)
-
-                optimizer.zero_grad()
-                with torch.set_grad_enabled(phase == 'train'):
-                    outputs = model(inputs)
-                    _, preds = torch.max(outputs, 1)
-                    loss = criterion(outputs, labels)
-
-                    if phase == 'train':
-                        loss.backward()
-                        optimizer.step()
-
-                running_loss += loss.item() * inputs.size(0)
-                running_corrects += torch.sum(preds == labels.data)
-
-                # Output progress every 10 batches
-                if batch_idx % 10 == 0:
-                    print(f"{phase.capitalize()} Batch {batch_idx + 1}/{total_batches} - Loss: {loss.item():.4f}")
-
-            epoch_loss = running_loss / len(image_datasets[phase])
-            epoch_acc = running_corrects.double() / len(image_datasets[phase])
-
-            print(f"{phase.capitalize()} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}")
-
-        epoch_duration = time.time() - epoch_start
-        print(f"Epoch duration: {epoch_duration:.2f} seconds\n")
-        
-    return model
-
-# Train and save the model
-model = train_model(model, criterion, optimizer, num_epochs=10)
-os.makedirs('model/checkpoints', exist_ok=True)
-torch.save(model, 'model/checkpoints/plant_disease_model.pth')
-print("Model saved at 'model/checkpoints/plant_disease_model.pth'")
-
-# Save class names to a JSON file
-with open('model/checkpoints/class_names.json', 'w') as f:
-    json.dump(class_names, f)
-print("Class names saved at 'model/checkpoints/class_names.json'")
+@app.get("/clean_dataset")
+async def clean_dataset():
+    if os.path.exists(dataset_dir):
+        shutil.rmtree(dataset_dir)
+        return {"status": "Dataset successfully deleted"}
+    else:
+        return {"status": "Dataset was already empty"}
