@@ -12,7 +12,8 @@ import json
 import shutil
 import subprocess
 import random
-import uuid  # Para crear nombres únicos para las imágenes cargadas
+import uuid
+import json
 
 app = FastAPI()
 
@@ -37,6 +38,21 @@ class_info = {}
 
 # Ensure upload directory exists
 os.makedirs(upload_dir, exist_ok=True)
+
+# Load the analyses from the JSON file
+def save_analysis_to_json(data):
+    file_path = os.path.join(upload_dir, "analyses.json")
+    # Cargar datos existentes
+    if os.path.exists(file_path):
+        with open(file_path, "r") as file:
+            analyses = json.load(file)
+    else:
+        analyses = []
+
+    # Añadir el nuevo análisis y guardar el archivo JSON
+    analyses.append(data)
+    with open(file_path, "w") as file:
+        json.dump(analyses, file, indent=4)
 
 def check_and_download_dataset():
     if not os.path.exists(dataset_dir) or not os.listdir(dataset_dir):
@@ -144,6 +160,15 @@ async def predict_disease(request: Request, file: UploadFile = File(...)):
         "solution": "No solution available for this class."
     })
 
+    # Save analysis data to JSON file
+    analysis_data = {
+        "image_url": f"/static/uploads/{image_id}.png",
+        "display_name": info["display_name"],
+        "description": info["description"],
+        "solution": info["solution"]
+    }
+    save_analysis_to_json(analysis_data)
+
     return templates.TemplateResponse("result.html", {
         "request": request,
         "display_name": info["display_name"],
@@ -159,3 +184,19 @@ async def clean_dataset():
         return {"status": "Dataset successfully deleted"}
     else:
         return {"status": "Dataset was already empty"}
+
+@app.get("/gallery", response_class=HTMLResponse)
+async def get_gallery(request: Request):
+    # Load analyses from JSON file
+    file_path = os.path.join(upload_dir, "analyses.json")
+    if os.path.exists(file_path):
+        with open(file_path, "r") as file:
+            analyses = json.load(file)
+    else:
+        analyses = []
+
+    # Render the gallery page with the analyses
+    return templates.TemplateResponse("gallery.html", {
+        "request": request,
+        "analyses": analyses
+    })

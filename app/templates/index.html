@@ -22,6 +22,11 @@
             <input type="file" name="file" id="file-input" accept="image/*" class="mb-4 p-2 border border-gray-300 rounded">
             <button type="submit" class="bg-green-500 text-white px-4 py-2 rounded">Analyze</button>
         </form>
+
+        <!-- Link to gallery.html -->
+        <div class="text-center mt-4">
+            <a href="/gallery" class="text-blue-500">View Analysis Gallery</a>
+        </div>
     </div>
 
     <script>
@@ -32,32 +37,39 @@
         const fileInput = document.getElementById('file-input');
 
         captureButton.addEventListener('click', async () => {
-            // Request access to the camera
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            video.srcObject = stream;
-            video.classList.remove('hidden');
-            captureButton.textContent = "Capture Image";
+            // Check for getUserMedia support
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert("Camera access is not supported by your browser or requires HTTPS.");
+                return;
+            }
 
-            // When capture button is clicked again, capture the image
-            captureButton.onclick = () => {
-                const context = canvas.getContext('2d');
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+                video.classList.remove('hidden');
+                captureButton.textContent = "Capture Image";
 
-                // Convert canvas to blob and set as file input
-                canvas.toBlob(blob => {
-                    const file = new File([blob], "photo.png", { type: "image/png" });
-                    const dataTransfer = new DataTransfer();
-                    dataTransfer.items.add(file);
-                    fileInput.files = dataTransfer.files;
+                captureButton.onclick = () => {
+                    const context = canvas.getContext('2d');
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-                    // Stop video stream and hide video
-                    stream.getTracks().forEach(track => track.stop());
-                    video.classList.add('hidden');
-                    captureButton.textContent = "Take a Photo";
-                });
-            };
+                    canvas.toBlob(blob => {
+                        const file = new File([blob], "photo.png", { type: "image/png" });
+                        const dataTransfer = new DataTransfer();
+                        dataTransfer.items.add(file);
+                        fileInput.files = dataTransfer.files;
+
+                        stream.getTracks().forEach(track => track.stop());
+                        video.classList.add('hidden');
+                        captureButton.textContent = "Take a Photo";
+                    });
+                };
+            } catch (error) {
+                console.error("Error accessing camera:", error);
+                alert("Could not access the camera. Please check your browser settings.");
+            }
         });
     </script>
 </body>
