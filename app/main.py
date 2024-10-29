@@ -26,6 +26,12 @@ val_dir = os.path.join(dataset_dir, 'val')
 model_dir = "model/checkpoints"
 model_path = f"{model_dir}/plant_disease_model.pth"
 class_names_path = f"{model_dir}/class_names.json"
+class_info_path = f"{model_dir}/class_info.json"
+
+# Initialize global variables for model, class names, and class info
+model = None
+class_names = []
+class_info = {}
 
 def check_and_download_dataset():
     if not os.path.exists(dataset_dir) or not os.listdir(dataset_dir):
@@ -62,7 +68,7 @@ def check_and_download_dataset():
         print(f"Dataset structured into train and val directories at {dataset_dir}")
 
 def load_model():
-    global model, class_names
+    global model, class_names, class_info
     if os.path.exists(model_path) and os.path.exists(class_names_path):
         model = torch.load(model_path, map_location=torch.device('cpu'))  # Load model on CPU
         model.eval()
@@ -70,9 +76,15 @@ def load_model():
             class_names = json.load(f)
         print("Model and class names loaded successfully.")
     else:
-        model = None
-        class_names = []
         print("Model not found. Please train the model using train.py before running the application.")
+
+    # Load class info if available
+    if os.path.exists(class_info_path):
+        with open(class_info_path, "r") as f:
+            class_info = json.load(f)
+        print("Class information loaded successfully.")
+    else:
+        print("Class information not found. Please ensure class_info.json is in the model directory.")
 
 def train_model_if_needed():
     if not os.path.exists(model_path) or not os.path.exists(class_names_path):
@@ -86,6 +98,7 @@ def train_model_if_needed():
 @app.on_event("startup")
 def on_startup():
     check_and_download_dataset()
+    load_model()  # Ensure model and class info are loaded at startup
     train_model_if_needed()
 
 @app.get("/", response_class=HTMLResponse)
@@ -97,6 +110,7 @@ async def predict_disease(request: Request, file: UploadFile = File(...)):
     if model is None:
         return {"error": "Model not loaded. Please train the model first."}
 
+    # Read and process the image
     image = Image.open(io.BytesIO(await file.read()))
     transform = transforms.Compose([
         transforms.Resize((224, 224)),
@@ -105,14 +119,24 @@ async def predict_disease(request: Request, file: UploadFile = File(...)):
     ])
     image_tensor = transform(image).unsqueeze(0).to('cpu')  # Ensure tensor is on CPU
 
+    # Perform prediction
     with torch.no_grad():
         output = model(image_tensor)
         _, predicted = torch.max(output, 1)
-        disease_name = class_names[predicted.item()]
+        class_name = class_names[predicted.item()]
+
+    # Retrieve class information
+    info = class_info.get(class_name, {
+        "display_name": class_name,
+        "description": "No description available for this class.",
+        "solution": "No solution available for this class."
+    })
 
     return templates.TemplateResponse("result.html", {
         "request": request,
-        "disease_name": disease_name
+        "display_name": info["display_name"],
+        "description": info["description"],
+        "solution": info["solution"]
     })
 
 @app.get("/clean_dataset")
