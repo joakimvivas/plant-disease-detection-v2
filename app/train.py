@@ -51,10 +51,10 @@ model = model.to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 
-def train_model(model, criterion, optimizer, num_epochs=10):
+def train_model(model, criterion, optimizer, num_epochs=2):
     for epoch in range(num_epochs):
         print(f"Epoch {epoch + 1}/{num_epochs}")
-        print("-" * 10)
+        print("-" * 2) # Related to epoch progress
         
         epoch_start = time.time()
         
