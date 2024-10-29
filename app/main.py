@@ -149,7 +149,7 @@ async def predict_disease(request: Request, file: UploadFile = File(...)):
         "display_name": info["display_name"],
         "description": info["description"],
         "solution": info["solution"],
-        "image_url": f"/{image_path}"  # Send image path to the template
+        "image_url": f"/static/uploads/{image_id}.png"  # Send image path to the template
     })
 
 @app.get("/clean_dataset")
