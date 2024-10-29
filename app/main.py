@@ -12,6 +12,7 @@ import json
 import shutil
 import subprocess
 import random
+import uuid  # Para crear nombres únicos para las imágenes cargadas
 
 app = FastAPI()
 
@@ -27,11 +28,15 @@ model_dir = "model/checkpoints"
 model_path = f"{model_dir}/plant_disease_model.pth"
 class_names_path = f"{model_dir}/class_names.json"
 class_info_path = f"{model_dir}/class_info.json"
+upload_dir = "static/uploads"
 
 # Initialize global variables for model, class names, and class info
 model = None
 class_names = []
 class_info = {}
+
+# Ensure upload directory exists
+os.makedirs(upload_dir, exist_ok=True)
 
 def check_and_download_dataset():
     if not os.path.exists(dataset_dir) or not os.listdir(dataset_dir):
@@ -84,6 +89,7 @@ def load_model():
             class_info = json.load(f)
         print("Class information loaded successfully.")
     else:
+        class_info = {}
         print("Class information not found. Please ensure class_info.json is in the model directory.")
 
 def train_model_if_needed():
@@ -110,8 +116,14 @@ async def predict_disease(request: Request, file: UploadFile = File(...)):
     if model is None:
         return {"error": "Model not loaded. Please train the model first."}
 
-    # Read and process the image
-    image = Image.open(io.BytesIO(await file.read()))
+    # Save uploaded image to display in the results page
+    image_id = str(uuid.uuid4())
+    image_path = os.path.join(upload_dir, f"{image_id}.png")
+    with open(image_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    # Load and process the image
+    image = Image.open(image_path)
     transform = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
@@ -136,7 +148,8 @@ async def predict_disease(request: Request, file: UploadFile = File(...)):
         "request": request,
         "display_name": info["display_name"],
         "description": info["description"],
-        "solution": info["solution"]
+        "solution": info["solution"],
+        "image_url": f"/{image_path}"  # Send image path to the template
     })
 
 @app.get("/clean_dataset")
