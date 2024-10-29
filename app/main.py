@@ -28,7 +28,7 @@ model_dir = "model/checkpoints"
 model_path = f"{model_dir}/plant_disease_model.pth"
 class_names_path = f"{model_dir}/class_names.json"
 class_info_path = f"{model_dir}/class_info.json"
-upload_dir = "static/uploads"
+upload_dir = "app/static/uploads"
 
 # Initialize global variables for model, class names, and class info
 model = None
