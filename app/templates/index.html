@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detect Plant Disease</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-green-100 flex items-center justify-center h-screen">
+    <div class="bg-white p-6 rounded-lg shadow-md w-full max-w-md">
+        <h2 class="text-2xl font-bold mb-4">Detect Plant Disease</h2>
+        
+        <!-- Video and canvas for camera capture -->
+        <video id="video" autoplay class="hidden"></video>
+        <canvas id="canvas" class="hidden"></canvas>
+
+        <!-- Button to take photo from camera -->
+        <button id="capture-button" class="bg-blue-500 text-white px-4 py-2 rounded mb-4">Take a Photo</button>
+
+        <!-- File input for uploading image -->
+        <form id="upload-form" action="/predict" enctype="multipart/form-data" method="post">
+            <input type="file" name="file" id="file-input" accept="image/*" class="mb-4 p-2 border border-gray-300 rounded">
+            <button type="submit" class="bg-green-500 text-white px-4 py-2 rounded">Analyze</button>
+        </form>
+
+        <!-- Link to gallery.html -->
+        <div class="text-center mt-4">
+            <a href="/gallery" class="text-blue-500">View Analysis Gallery</a>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const captureButton = document.getElementById('capture-button');
+        const uploadForm = document.getElementById('upload-form');
+        const fileInput = document.getElementById('file-input');
+
+        captureButton.addEventListener('click', async () => {
+            // Check for getUserMedia support
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert("Camera access is not supported by your browser or requires HTTPS.");
+                return;
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+                video.classList.remove('hidden');
+                captureButton.textContent = "Capture Image";
+
+                captureButton.onclick = () => {
+                    const context = canvas.getContext('2d');
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                    canvas.toBlob(blob => {
+                        const file = new File([blob], "photo.png", { type: "image/png" });
+                        const dataTransfer = new DataTransfer();
+                        dataTransfer.items.add(file);
+                        fileInput.files = dataTransfer.files;
+
+                        stream.getTracks().forEach(track => track.stop());
+                        video.classList.add('hidden');
+                        captureButton.textContent = "Take a Photo";
+                    });
+                };
+            } catch (error) {
+                console.error("Error accessing camera:", error);
+                alert("Could not access the camera. Please check your browser settings.");
+            }
+        });
+    </script>
+</body>
+</html>

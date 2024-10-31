@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: plant-disease-detection
+    ports:
+      - "8009:3000"
+    volumes:
+      - .:/app
+    restart: always
