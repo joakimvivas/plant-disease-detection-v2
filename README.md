@@ -6,6 +6,36 @@ The model is trained on a large dataset of plant images, which includes images o
 
 This project was born from the [Plant Disease Detection project](https://github.com/joakimvivas/plant-disease-detector) and is a continuation of that project. The goal of this project is to improve the model's performance and make it more efficient.
 
+![Plants Diseas Home](Plants-Disease-Home.png)
+
+## Architecture of the Project
+
+This project allows the detection of plant diseases by analyzing images and using artificial intelligence and deep learning to classify common diseases in the leaves of different crops. The application integrates a backend developed in [FastAPI](https://fastapi.tiangolo.com/) and a simply frontend with HTML and TailwindCSS. The backend provides a RESTful API for interacting with the application, while the frontend is responsible for rendering the user interface and handling user interactions.
+
+### Backend FastAPI Key Points
+
+- **Performance and efficiency:** FastAPI is asynchronous and high-performance, which optimizes the handling of multiple requests simultaneously.
+- **Ease of integration:** It allows you to easily integrate AI libraries and load pre-trained models, such as [ResNet-50](https://huggingface.co/microsoft/resnet-50), and offer fast answers in analysis.
+- **Intuitive endpoints:** FastAPI allows you to build simple and well-documented endpoints to upload and process images, such as the /predict endpoints for analysis and /or gallery to view previous results.
+
+### Frontend HTML Interface
+
+The interface is simple and designed in HTML and TailwindCSS to offer a minimalist but functional design. This interface includes options to:
+
+- **Capture or upload images:** This feature allows users to upload photos of leaves from their device or directly from the camera.
+- **View previous analysis results:** A gallery page that shows the history of uploaded images and their respective diagnostics provides a visual and descriptive summary of each analysis.
+- **Reset button for additional analysis:** Facilitates workflow by allowing multiple images to be analyzed quickly.
+
+![Plants Diseas Home](Plants-Disease-Gallery.png)
+
+### Architecture of the AI Model: ResNet
+
+We used [ResNet-50](https://huggingface.co/microsoft/resnet-50), a deep convolutional neural network, pre-trained on the ImageNet dataset. ResNet is one of the most popular and effective architectures for image classification tasks. The choice of this model is based on:
+
+- **Model depth:** With 50 layers, [ResNet-50](https://huggingface.co/microsoft/resnet-50) can capture complex features of images, making it ideal for identifying subtle details between different types of leaf diseases.
+- **Residual block structure:** Allows training deep networks without the problem of gradient degradation, optimizing accuracy.
+- **Transfer Learning:** By using a pre-trained model, we can leverage visual features learned from other datasets, such as ImageNet, and fine-tune the model for the plant disease dataset, reducing the time and resources required for training.
+
 ## Running the project locally (How to Run)
 
 1. Create the Python virtual environment
